@@ -1,6 +1,6 @@
 {
   "name": "blinko-plugin-spotify-embed",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "description": "Render Spotify links in Blinko notes as official embed cards",
   "devDependencies": {

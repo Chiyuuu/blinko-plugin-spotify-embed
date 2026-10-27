@@ -41,7 +41,8 @@ html.dark .bs-card,[data-theme="dark"] .bs-card{
   border:0;background:transparent;}
 .bs-card .bs-tip{position:absolute;left:0;right:0;bottom:0;padding:5px 10px;
   font-size:11px;line-height:1.4;color:#d4d4d8;background:rgba(0,0,0,.55);text-align:center;}
-.link-preview-block:has(+ .bs-card.bs-hide-native){display:none!important;}
+/* 原生预览的隐藏交给 inline display:none（见 scanner.addCard），
+   不再用 :has() 全局选择器，减少大 DOM 上的样式失效开销 */
 @media (max-width:480px){
   .bs-card{border-radius:12px;margin:8px 0 10px;}
   .bs-card .bs-head{padding:6px 8px;font-size:11px;gap:5px;}

@@ -2,7 +2,7 @@
   "name": "blinko-plugin-spotify-embed",
   "author": "Chiyuuu",
   "url": "https://github.com/Chiyuuu/blinko-plugin-spotify-embed",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minAppVersion": "0.0.0",
   "displayName": {
     "default": "Spotify Embed Card",
