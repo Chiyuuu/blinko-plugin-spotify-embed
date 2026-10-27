@@ -12,5 +12,7 @@
   "save": "Save",
   "reset": "Reset",
   "saved": "Spotify card settings saved",
-  "saveFailed": "Save failed, check the console"
+  "saveFailed": "Save failed, check the console",
+  "fixIdleCpu": "Fix idle animation CPU burn",
+  "fixIdleCpuHint": "Upstream #1222: the hidden loader keeps triggering layout every frame. Pausing it cuts CPU; visible loaders are untouched."
 }

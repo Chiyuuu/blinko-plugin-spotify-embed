@@ -7,13 +7,16 @@ export interface PluginSettings {
   hideNative: boolean;
   /** 卡片最大宽度，0 = 跟随笔记宽度 */
   maxWidth: number;
+  /** 暂停隐藏 loader 的 SMIL 动画（上游 #1222，空载也吃 CPU） */
+  fixIdleCpu: boolean;
 }
 
 export const DEFAULTS: PluginSettings = {
   showHeader: true,
   lazy: true,
   hideNative: true,
-  maxWidth: 0
+  maxWidth: 0,
+  fixIdleCpu: true
 };
 
 const CACHE_KEY = 'bs-spotify-embed:settings';
@@ -30,7 +33,8 @@ export function normalizeSettings(raw: unknown): PluginSettings {
     showHeader: isOn(src.showHeader),
     lazy: isOn(src.lazy),
     hideNative: isOn(src.hideNative),
-    maxWidth: Number.isFinite(width) && width > 0 ? Math.min(Math.max(width, 240), 1200) : 0
+    maxWidth: Number.isFinite(width) && width > 0 ? Math.min(Math.max(width, 240), 1200) : 0,
+    fixIdleCpu: isOn(src.fixIdleCpu)
   };
 }
 

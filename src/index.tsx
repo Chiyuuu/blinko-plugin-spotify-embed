@@ -11,6 +11,7 @@ import { Setting } from './setting';
 import { SpotifyCardScanner } from './core/scanner';
 import { injectCardStyle, removeCardStyle } from './core/card';
 import { DEFAULTS, loadSettings, normalizeSettings, saveSettings, type PluginSettings } from './core/config';
+import { resetIdleAnimations, syncIdleAnimations } from './core/perf';
 
 /** 与 plugin.json 的 name 保持一致，配置项按这个前缀存在服务端 */
 const PLUGIN_NAME = 'blinko-plugin-spotify-embed';
@@ -39,6 +40,9 @@ System.register([], (exports) => ({
 
         private scanner = new SpotifyCardScanner(() => this.settings);
 
+        /** 上游 #1222 的运行时修补：暂停隐藏 loader 的动画 */
+        private idleTimer: number | null = null;
+
         /** 由 Blinko 在插件设置弹窗里调用 */
         renderSettingPanel = () => {
           const container = document.createElement('div');
@@ -58,15 +62,35 @@ System.register([], (exports) => ({
           injectCardStyle();
           this.settings = await loadSettings(PLUGIN_NAME);
           this.scanner.start();
+          this.startIdleFix();
           console.log('[spotify-card] ready', this.settings);
         }
 
         /** 按用户维度持久化到服务端，localStorage 只做首屏缓存 */
         private applySettings = async (next: PluginSettings) => {
+          const before = this.settings.fixIdleCpu;
           this.settings = normalizeSettings(next);
           await saveSettings(PLUGIN_NAME, this.settings);
           this.scanner.rescan();
+          if (before !== this.settings.fixIdleCpu) {
+            this.stopIdleFix();
+            this.startIdleFix();
+          }
         };
+
+        private startIdleFix() {
+          if (!this.settings.fixIdleCpu || this.idleTimer !== null) return;
+          syncIdleAnimations();
+          this.idleTimer = window.setInterval(syncIdleAnimations, 1000);
+        }
+
+        private stopIdleFix() {
+          if (this.idleTimer !== null) {
+            window.clearInterval(this.idleTimer);
+            this.idleTimer = null;
+          }
+          resetIdleAnimations();
+        }
 
         private initI18n() {
           window.Blinko?.i18n?.addResourceBundle?.('en', 'translation', en);
@@ -74,6 +98,7 @@ System.register([], (exports) => ({
         }
 
         destroy() {
+          this.stopIdleFix();
           this.scanner.stop();
           removeCardStyle();
           if ((window as any)[ACTIVE_KEY] === this) (window as any)[ACTIVE_KEY] = null;

@@ -12,5 +12,7 @@
   "save": "保存",
   "reset": "恢复默认",
   "saved": "Spotify 卡片设置已保存",
-  "saveFailed": "保存失败，请查看控制台"
+  "saveFailed": "保存失败，请查看控制台",
+  "fixIdleCpu": "修复空载动画耗 CPU",
+  "fixIdleCpuHint": "上游 #1222：隐藏的加载动画仍在每帧触发 layout。开启后暂停它降低 CPU，正在显示的加载动画不受影响。"
 }

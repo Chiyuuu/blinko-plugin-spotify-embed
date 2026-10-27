@@ -85,6 +85,14 @@ export function Setting({ settings, onSave }: SettingProps) {
         />
       </Row>
 
+      <Row label={t('fixIdleCpu')} hint={t('fixIdleCpuHint')}>
+        <input
+          type="checkbox"
+          checked={state.fixIdleCpu}
+          onChange={(event) => patch({ fixIdleCpu: event.currentTarget.checked })}
+        />
+      </Row>
+
       <div class="bs-actions">
         <button type="button" onClick={() => setState(normalizeSettings(DEFAULTS))}>
           {t('reset')}

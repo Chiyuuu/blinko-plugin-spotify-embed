@@ -163,6 +163,13 @@
     </div>
   </div>
 
+  <!-- 模拟 Blinko 的隐藏 loader（h-0 + 无限 SMIL 动画），验证插件的 CPU 修补是否生效 -->
+  <svg class="h-0" width="40" height="40" aria-hidden="true">
+    <circle cx="20" cy="20" r="6" fill="#1DB954">
+      <animate attributeName="opacity" values="1;0.2;1" dur="1s" repeatCount="indefinite" />
+    </circle>
+  </svg>
+
   <div id="settings-host"></div>
 </div>
 
@@ -214,7 +221,9 @@
     var cards = document.querySelectorAll('.bs-card').length;
     var iframes = document.querySelectorAll('.bs-card iframe').length;
     var hidden = document.querySelectorAll('.link-preview-block[data-bs-hidden-by-card="1"]').length;
-    document.getElementById('stat').textContent = '卡片 ' + cards + ' 张 · 已挂载播放器 ' + iframes + ' 个 · 已隐藏原生预览 ' + hidden + ' 个';
+    var loader = document.querySelector('svg.h-0');
+    var paused = loader && typeof loader.animationsPaused === 'function' ? loader.animationsPaused() : null;
+    document.getElementById('stat').textContent = '卡片 ' + cards + ' 张 · 已挂载播放器 ' + iframes + ' 个 · 已隐藏原生预览 ' + hidden + ' 个 · 隐藏动画' + (paused === null ? '未检测' : paused ? '已暂停 ✓' : '仍在跑 ✗');
   }
 
   setTimeout(updateStat, 300);
