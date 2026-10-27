@@ -1,0 +1,23 @@
+// 预览用：模拟 Blinko 的 i18n，把插件注册的 key 映射成中文
+window.BS_MOCK_I18N = {
+  text: {
+    title: 'Spotify 音乐卡片',
+    desc: '在笔记里粘贴 open.spotify.com 的单曲 / 专辑 / 歌单 / 艺人 / 播客链接，单独一行效果最佳；保存后立即生效。',
+    showHeader: '显示顶部信息条',
+    showHeaderHint: '展示 Spotify 标识、链接类型与「打开」按钮。',
+    lazy: '懒加载播放器',
+    lazyHint: '滚动到卡片附近才载入官方 Embed，笔记很多时更省性能。',
+    hideNative: '隐藏原生链接预览',
+    hideNativeHint: '用卡片替换 Blinko 自带的链接预览行，避免同一链接出现两次。',
+    maxWidth: '卡片最大宽度',
+    maxWidthHint: '单位 px，填 0 表示跟随笔记内容宽度。',
+    save: '保存',
+    reset: '恢复默认',
+    saved: 'Spotify 卡片设置已保存',
+    saveFailed: '保存失败，请查看控制台'
+  },
+  t(key) {
+    return this.text[key] || key;
+  },
+  addResourceBundle() {}
+};

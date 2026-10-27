@@ -1,0 +1,19 @@
+{
+  "name": "blinko-plugin-spotify-embed",
+  "author": "Chiyuuu",
+  "url": "https://github.com/Chiyuuu/blinko-plugin-spotify-embed",
+  "version": "1.0.0",
+  "minAppVersion": "0.0.0",
+  "displayName": {
+    "default": "Spotify Embed Card",
+    "zh": "Spotify 音乐卡片"
+  },
+  "description": {
+    "default": "Turn Spotify track / album / playlist / artist / episode links in notes into official embed cards (cover art, title, artist, player).",
+    "zh": "把笔记里的 Spotify 单曲、专辑、歌单、艺人、播客链接自动渲染成官方 Embed 卡片：专辑图、歌名、艺人、可直接播放。"
+  },
+  "readme": {
+    "default": "README_en.md",
+    "zh": "README.md"
+  }
+}

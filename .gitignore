@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# build / cache
+dist/
+.temp/
+.cache/
+*.tsbuildinfo
+
+# logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# release package is uploaded as a GitHub release asset, not committed
+release.zip
+
+# local scratch
+.backup/
+.DS_Store
+.idea/
+.vscode/

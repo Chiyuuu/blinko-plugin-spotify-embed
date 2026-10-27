@@ -1,0 +1,16 @@
+{
+  "title": "Spotify Embed Card",
+  "desc": "Paste an open.spotify.com track / album / playlist / artist / episode link into a note. One link per line works best; changes apply immediately.",
+  "showHeader": "Show header bar",
+  "showHeaderHint": "Spotify mark, link type and an open button.",
+  "lazy": "Lazy load player",
+  "lazyHint": "Mount the official embed only when the card scrolls near the viewport.",
+  "hideNative": "Hide native link preview",
+  "hideNativeHint": "Replace Blinko's own preview row so the same link is not shown twice.",
+  "maxWidth": "Max card width",
+  "maxWidthHint": "In px. 0 means follow the note width.",
+  "save": "Save",
+  "reset": "Reset",
+  "saved": "Spotify card settings saved",
+  "saveFailed": "Save failed, check the console"
+}

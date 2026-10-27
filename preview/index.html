@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spotify 音乐卡片 · 本地预览</title>
+<style>
+  :root { color-scheme: light; }
+  html.dark { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 16px 96px;
+    font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f7f7f8; color: #18181b;
+  }
+  html.dark body { background: #0d0d0f; color: #e8e8ea; }
+
+  .wrap { max-width: 720px; margin: 0 auto; }
+  .page-head { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+  .page-head h1 { font-size: 17px; margin: 0; font-weight: 650; }
+  .page-head .spacer { flex: 1; }
+  .btn {
+    font: inherit; font-size: 13px; padding: 7px 14px; border-radius: 9px; cursor: pointer;
+    border: 1px solid rgba(127,127,127,.3); background: transparent; color: inherit;
+  }
+  .btn:hover { background: rgba(127,127,127,.1); }
+  .btn.primary { background: #1DB954; border-color: #1DB954; color: #fff; font-weight: 600; }
+  .tip { font-size: 12.5px; color: #71717a; margin: 0 0 22px; line-height: 1.6; }
+  html.dark .tip { color: #9a9aa2; }
+  .stat { font-size: 12px; color: #1DB954; font-variant-numeric: tabular-nums; }
+
+  .note {
+    background: #fff; border: 1px solid rgba(15,23,42,.07); border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 14px;
+    box-shadow: 0 1px 2px rgba(15,23,42,.04);
+  }
+  html.dark .note { background: #141417; border-color: rgba(255,255,255,.07); box-shadow: none; }
+  .note-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8a8a93; margin-bottom: 6px; }
+  .dot { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg,#1DB954,#0f9d58); }
+  .note-body { font-size: 14.5px; }
+  .note-body p { margin: 6px 0; }
+
+  /* 模拟 Blinko 的 markdown / 链接预览结构 */
+  .markdown-body a { color: #2563eb; text-decoration: none; }
+  html.dark .markdown-body a { color: #60a5fa; }
+  .markdown-body a:hover { text-decoration: underline; }
+  .link-preview-block { width: 100%; margin: 8px 0; }
+  .link-preview-block > a { display: block; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .native-preview {
+    padding: 8px; border-radius: 12px; background: rgba(127,127,127,.1);
+    max-width: 420px; cursor: pointer;
+  }
+  .native-preview .t { font-weight: 700; font-size: 13px; }
+  .native-preview .d { font-size: 12px; color: #8a8a93; margin-top: 2px; }
+
+  #settings-host { margin-top: 26px; padding: 16px; border: 1px dashed rgba(127,127,127,.35); border-radius: 12px; display: none; }
+  #settings-host.on { display: block; }
+
+  /* 离线示意图：本机访问不到 Spotify 时，用来模拟官方播放器的外观 */
+  .demo-player { position: absolute; inset: 0; display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: #282828; color: #fff; }
+  .demo-player.tall { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .demo-player.tall .demo-meta { flex: 0 0 auto; width: 100%; }
+  .demo-cover { width: 72px; height: 72px; border-radius: 6px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; background: linear-gradient(140deg,#7f5af0,#2cb67d); }
+  .demo-player.tall .demo-cover { width: 104px; height: 104px; }
+  .demo-cover svg { opacity: .92; }
+  .demo-meta { min-width: 0; flex: 1; }
+  .demo-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .demo-artist { font-size: 12px; color: #b3b3b3; margin-top: 3px; }
+  .demo-bar { height: 3px; border-radius: 2px; background: #4d4d4d; margin-top: 12px; position: relative; }
+  .demo-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 34%; border-radius: 2px; background: #1DB954; }
+  .demo-rows { width: 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .demo-row { display: flex; gap: 10px; align-items: center; font-size: 12px; color: #c9c9c9; }
+  .demo-row span:first-child { color: #7a7a7a; width: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="page-head">
+    <h1>Spotify 音乐卡片 · 本地预览</h1>
+    <span class="stat" id="stat">初始化中…</span>
+    <span class="spacer"></span>
+    <button class="btn" id="theme">切换深色</button>
+    <button class="btn" id="add">插入新笔记</button>
+    <button class="btn" id="rerender">模拟重渲染</button>
+    <button class="btn" id="demo">离线示意图</button>
+    <button class="btn primary" id="settings">设置面板</button>
+  </div>
+
+  <p class="tip">
+    这个页面用与 Blinko 相同的 DOM 结构模拟笔记渲染：<code>.markdown-body</code> 里，
+    单独一行的链接会被包成 <code>.link-preview-block</code>。插件应当把这类链接换成官方 Embed 卡片，
+    并保留行内链接（卡片追加在段落下方）。专辑图与播放器由 Spotify 官方 iframe 提供，需要能访问 open.spotify.com。
+  </p>
+
+  <!-- 笔记 1：独立链接（block） -->
+  <div class="note">
+    <div class="note-head"><span class="dot"></span><span>23:41 · 音乐</span></div>
+    <div class="note-body markdown-body">
+      <p>今天循环这首，鼓点太顶了。</p>
+      <div class="my-2">
+        <div class="link-preview-block">
+          <a href="https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT?si=1a2b3c4d5e6f" target="_blank" rel="noopener noreferrer">https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT</a>
+          <div class="native-preview">
+            <div class="t">Never Gonna Give You Up</div>
+            <div class="d">Rick Astley · Whenever You Need Somebody</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 笔记 2：相册 -->
+  <div class="note">
+    <div class="note-head"><span class="dot"></span><span>22:10 · 收藏</span></div>
+    <div class="note-body markdown-body">
+      <p>整张专辑都值得听：</p>
+      <div class="my-2">
+        <div class="link-preview-block">
+          <a href="https://open.spotify.com/intl-zh/album/1ATL5GLyefJaxhQzSPVrLX" target="_blank" rel="noopener noreferrer">https://open.spotify.com/intl-zh/album/1ATL5GLyefJaxhQzSPVrLX</a>
+          <div class="native-preview">
+            <div class="t">Album</div>
+            <div class="d">Spotify</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 笔记 3：行内链接（inline） -->
+  <div class="note">
+    <div class="note-head"><span class="dot"></span><span>20:05 · 随手记</span></div>
+    <div class="note-body markdown-body">
+      <p>通勤路上一直在听 <a href="https://open.spotify.com/track/7qiZfU4dY1lWllzX7mPBI3" target="_blank" rel="noopener noreferrer">Shape of You</a>，副歌很抓耳。</p>
+      <p>顺便记一个普通链接：<a href="https://example.com/article" target="_blank" rel="noopener noreferrer">example.com/article</a>（不应该被处理）</p>
+    </div>
+  </div>
+
+  <!-- 笔记 4：播客 -->
+  <div class="note">
+    <div class="note-head"><span class="dot"></span><span>昨天 · 播客</span></div>
+    <div class="note-body markdown-body">
+      <div class="my-2">
+        <div class="link-preview-block">
+          <a href="https://open.spotify.com/episode/5C2tK7Z0m1oQ9y8Xr4bN3e" target="_blank" rel="noopener noreferrer">https://open.spotify.com/episode/5C2tK7Z0m1oQ9y8Xr4bN3e</a>
+          <div class="native-preview">
+            <div class="t">Episode</div>
+            <div class="d">Spotify</div>
+          </div>
+        </div>
+      </div>
+      <p>这段聊得很清楚。</p>
+    </div>
+  </div>
+
+  <!-- 笔记 5：列表内的链接 -->
+  <div class="note">
+    <div class="note-head"><span class="dot"></span><span>前天 · 清单</span></div>
+    <div class="note-body markdown-body">
+      <ul>
+        <li>早高峰：<a href="https://open.spotify.com/artist/06HL4z0CvFAxyc27GXpf02" target="_blank" rel="noopener noreferrer">Taylor Swift</a></li>
+        <li>无链接的一条</li>
+      </ul>
+    </div>
+  </div>
+
+  <div id="settings-host"></div>
+</div>
+
+<script>
+  // ---- SystemJS 极简垫片：只为在浏览器里直接跑 System.register 模块 ----
+  window.__pluginClass = null;
+  window.System = {
+    register: function (deps, declare) {
+      var exported = {};
+      var ctx = declare(function (name, value) { exported[name] = value; });
+      if (ctx && typeof ctx.execute === 'function') ctx.execute();
+      window.__pluginClass = exported['default'];
+    }
+  };
+</script>
+<script src="../release/index.js"></script>
+<script src="./mock-i18n.js"></script>
+<script>
+  // ---- 模拟 window.Blinko（配置读写 / toast / i18n） ----
+  var mockConfig = { showHeader: true, lazy: true, hideNative: true, maxWidth: 620 };
+
+  window.Blinko = {
+    api: {
+      config: {
+        getPluginConfig: {
+          query: function () { return Promise.resolve(Object.assign({}, mockConfig)); }
+        },
+        setPluginConfig: {
+          mutate: function (args) {
+            mockConfig[args.key] = args.value;
+            return Promise.resolve({ success: true });
+          }
+        }
+      }
+    },
+    i18n: window.BS_MOCK_I18N,
+    toast: {
+      success: function (m) { console.log('[toast]', m); },
+      error: function (m) { console.warn('[toast]', m); }
+    },
+    closeDialog: function () { document.getElementById('settings-host').classList.remove('on'); }
+  };
+
+  var plugin = new window.__pluginClass();
+  plugin.init();
+  window.__plugin = plugin;
+
+  function updateStat() {
+    var cards = document.querySelectorAll('.bs-card').length;
+    var iframes = document.querySelectorAll('.bs-card iframe').length;
+    var hidden = document.querySelectorAll('.link-preview-block[data-bs-hidden-by-card="1"]').length;
+    document.getElementById('stat').textContent = '卡片 ' + cards + ' 张 · 已挂载播放器 ' + iframes + ' 个 · 已隐藏原生预览 ' + hidden + ' 个';
+  }
+
+  setTimeout(updateStat, 300);
+  setInterval(updateStat, 1000);
+
+  document.getElementById('theme').addEventListener('click', function () {
+    var dark = document.documentElement.classList.toggle('dark');
+    this.textContent = dark ? '切换浅色' : '切换深色';
+  });
+
+  var seq = 0;
+  document.getElementById('add').addEventListener('click', function () {
+    seq++;
+    var note = document.createElement('div');
+    note.className = 'note';
+    note.innerHTML =
+      '<div class="note-head"><span class="dot"></span><span>刚刚 · 动态插入</span></div>' +
+      '<div class="note-body markdown-body">' +
+      '<p>模拟 Blinko 滚动加载 / 新建笔记（第 ' + seq + ' 条）：</p>' +
+      '<div class="my-2"><div class="link-preview-block">' +
+      '<a href="https://open.spotify.com/track/2xLMifQCjDGFmkHkpNLD9h" target="_blank" rel="noopener noreferrer">https://open.spotify.com/track/2xLMifQCjDGFmkHkpNLD9h</a>' +
+      '<div class="native-preview"><div class="t">Track</div><div class="d">Spotify</div></div>' +
+      '</div></div></div>';
+    document.querySelector('.wrap').insertBefore(note, document.getElementById('settings-host'));
+    updateStat();
+  });
+
+  // 模拟 React 重渲染：整段内容被替换，插件应清理旧卡片并重新生成
+  document.getElementById('rerender').addEventListener('click', function () {
+    var body = document.querySelectorAll('.note .note-body')[0];
+    var ids = ['3n3Ppam7vgaVa1iaRUc9Lp', '1Qrg8KqiBpW07V7PNxwwwL', '0VjIjW4GlUZAMYd2vXMi3b'];
+    var id = ids[Math.floor(Math.random() * ids.length)];
+    body.innerHTML =
+      '<p>重渲染后的内容（React 会整段替换 DOM）：</p>' +
+      '<div class="my-2"><div class="link-preview-block">' +
+      '<a href="https://open.spotify.com/track/' + id + '" target="_blank" rel="noopener noreferrer">https://open.spotify.com/track/' + id + '</a>' +
+      '<div class="native-preview"><div class="t">Track</div><div class="d">Spotify</div></div>' +
+      '</div></div>';
+    updateStat();
+  });
+
+  document.getElementById('settings').addEventListener('click', function () {
+    var host = document.getElementById('settings-host');
+    if (host.classList.contains('on')) {
+      host.classList.remove('on');
+      return;
+    }
+    host.innerHTML = '<div style="font-size:12px;opacity:.6;margin-bottom:10px">插件 renderSettingPanel() 的真实输出：</div>';
+    host.appendChild(plugin.renderSettingPanel());
+    host.classList.add('on');
+  });
+
+  // ---- 离线示意图：用静态占位模拟官方播放器外观（仅预览用，插件本身不受影响） ----
+  var DEMO = {
+    '4cOdK2wGLETKBW3PvgPWqT': ['Never Gonna Give You Up', 'Rick Astley'],
+    '1ATL5GLyefJaxhQzSPVrLX': ['After Hours', 'The Weeknd'],
+    '7qiZfU4dY1lWllzX7mPBI3': ['Shape of You', 'Ed Sheeran'],
+    '5C2tK7Z0m1oQ9y8Xr4bN3e': ['EP.128 关于睡眠的一切', '随机波动 StochasticVolatility'],
+    '06HL4z0CvFAxyc27GXpf02': ['Taylor Swift', '艺人'],
+    '2xLMifQCjDGFmkHkpNLD9h': ['Blinding Lights', 'The Weeknd'],
+    '3n3Ppam7vgaVa1iaRUc9Lp': ['Sunflower', 'Post Malone, Swae Lee'],
+    '1Qrg8KqiBpW07V7PNxwwwL': ['Levitating', 'Dua Lipa'],
+    '0VjIjW4GlUZAMYd2vXMi3b': ['Save Your Tears', 'The Weeknd']
+  };
+
+  function applyDemoSkin() {
+    document.querySelectorAll('.bs-card').forEach(function (card) {
+      var frame = card.querySelector('.bs-frame');
+      if (!frame) return;
+
+      var existing = frame.querySelector('.demo-player');
+      var iframe = frame.querySelector('iframe');
+      if (iframe) iframe.remove();
+      if (existing) return;
+
+      var href = card.getAttribute('data-href') || '';
+      var info = DEMO[href.split('/').pop()] || ['示例曲目', '示例艺人'];
+      var height = parseInt(frame.style.height, 10) || 152;
+
+      var wrap = document.createElement('div');
+      wrap.className = 'demo-player' + (height > 200 ? ' tall' : '');
+
+      var cover = document.createElement('div');
+      cover.className = 'demo-cover';
+      cover.innerHTML = '<svg width="26" height="26" viewBox="0 0 24 24" fill="#ffffff"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>';
+      wrap.appendChild(cover);
+
+      var meta = document.createElement('div');
+      meta.className = 'demo-meta';
+      var title = document.createElement('div');
+      title.className = 'demo-title';
+      title.textContent = info[0];
+      var artist = document.createElement('div');
+      artist.className = 'demo-artist';
+      artist.textContent = info[1];
+      meta.appendChild(title);
+      meta.appendChild(artist);
+
+      if (height <= 232) {
+        var bar = document.createElement('div');
+        bar.className = 'demo-bar';
+        bar.innerHTML = '<i></i>';
+        meta.appendChild(bar);
+      }
+      wrap.appendChild(meta);
+
+      if (height > 200) {
+        var rows = document.createElement('div');
+        rows.className = 'demo-rows';
+        ['1', '2', '3', '4', '5'].forEach(function (n) {
+          var row = document.createElement('div');
+          row.className = 'demo-row';
+          var num = document.createElement('span');
+          num.textContent = n;
+          var name = document.createElement('span');
+          name.textContent = '曲目 ' + n + ' · 示例标题';
+          row.appendChild(num);
+          row.appendChild(name);
+          rows.appendChild(row);
+        });
+        wrap.appendChild(rows);
+      }
+
+      frame.appendChild(wrap);
+    });
+  }
+
+  document.getElementById('demo').addEventListener('click', function () {
+    var p = new URLSearchParams(location.search);
+    p.set('demo', p.get('demo') === '0' ? '1' : '0');
+    location.search = p.toString();
+  });
+
+  // 便于截图 / 分享预览状态：?theme=dark 、?settings=1
+  var params = new URLSearchParams(location.search);
+  if (params.get('theme') === 'dark') {
+    document.documentElement.classList.add('dark');
+    document.getElementById('theme').textContent = '切换浅色';
+  }
+  if (params.get('rerender')) {
+    var times = Number(params.get('rerender')) || 1;
+    var done = 0;
+    var timer = setInterval(function () {
+      document.getElementById('rerender').click();
+      if (++done >= times) clearInterval(timer);
+    }, 700);
+  }
+  // 预览页默认走离线示意图（本机多半访问不到 Spotify）；?demo=0 切换为真实 iframe
+  var demoOn = params.get('demo') !== '0';
+  if (demoOn) {
+    var tipEl = document.querySelector('.tip');
+    if (tipEl) {
+      tipEl.innerHTML = '当前为<b>离线示意图</b>：本机访问不到 open.spotify.com，播放器区域用静态占位模拟官方 Embed 的外观。' +
+        '在能访问 Spotify 的浏览器里，这里就是官方播放器本体（专辑图、歌名、艺人、进度条、播放控制）。点「离线示意图」可切换成真实 iframe。';
+    }
+    setTimeout(applyDemoSkin, 400);
+    setInterval(applyDemoSkin, 900);
+  }
+
+  if (params.get('settings') === '1') {
+    document.getElementById('settings').click();
+    setTimeout(function () {
+      document.getElementById('settings-host').scrollIntoView({ block: 'start' });
+    }, 250);
+  }
+</script>
+</body>
+</html>
