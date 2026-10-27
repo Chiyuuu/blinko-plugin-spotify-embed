@@ -139,6 +139,14 @@ jobs:
             bun run tauri:android:build -- --target aarch64
           fi
 
+      - name: Verify plugin bundled into dist/public
+        run: |
+          F=$(find blinko/dist/public/plugins -name index.js | head -1)
+          echo "found: $F"
+          test -n "$F"
+          grep -q "BLINKO_SPOTIFY_CARD_ACTIVE" "$F"
+          echo "plugin bundle size: $(wc -c < "$F") bytes"
+
       - name: Collect APK
         id: apk
         run: |
