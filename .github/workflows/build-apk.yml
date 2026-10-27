@@ -61,11 +61,22 @@ jobs:
           distribution: zulu
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install NDK
-        run: sdkmanager "ndk;27.0.11902837"
+      - name: Install NDK 27
+        # GitHub 的 ubuntu runner 已预装 Android SDK，直接用自带 sdkmanager 装 NDK。
+        # 不用 android-actions/setup-android：它内部执行 `sdkmanager tools`，新版 SDK 仓库已无该包会报错。
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then
+            SDKMANAGER=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
+          fi
+          echo "using $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "ndk;27.0.11902837"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          ls "$ANDROID_HOME/ndk"
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v1
@@ -116,10 +127,12 @@ jobs:
       - name: Build APK
         working-directory: blinko/app
         env:
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.11902837
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.11902837
           NODE_OPTIONS: --max-old-space-size=4096
         run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          export NDK_HOME="$ANDROID_HOME/ndk/27.0.11902837"
+          export ANDROID_NDK_HOME="$NDK_HOME"
+          echo "NDK: $NDK_HOME"; ls "$NDK_HOME" | head -5
           if [ "${{ inputs.build_universal }}" = "true" ]; then
             bun run tauri:android:build
           else
