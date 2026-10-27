@@ -15,6 +15,9 @@ import { DEFAULTS, loadSettings, normalizeSettings, saveSettings, type PluginSet
 /** 与 plugin.json 的 name 保持一致，配置项按这个前缀存在服务端 */
 const PLUGIN_NAME = 'blinko-plugin-spotify-embed';
 
+/** 自编译 App 时插件既在服务端装了一份、又打进了 dist/public，可能被加载两次 */
+const ACTIVE_KEY = '__BLINKO_SPOTIFY_CARD_ACTIVE__';
+
 /**
  * 主入口：SystemJS 模块，导出实现 BasePlugin 的类。
  * 插件运行在主窗口里，DOM 增强逻辑见 core/scanner.ts。
@@ -44,6 +47,13 @@ System.register([], (exports) => ({
         };
 
         async init() {
+          const active = (window as any)[ACTIVE_KEY];
+          if (active) {
+            console.warn('[spotify-card] 已经有一个实例在运行，跳过重复加载');
+            return;
+          }
+          (window as any)[ACTIVE_KEY] = this;
+
           this.initI18n();
           injectCardStyle();
           this.settings = await loadSettings(PLUGIN_NAME);
@@ -66,6 +76,7 @@ System.register([], (exports) => ({
         destroy() {
           this.scanner.stop();
           removeCardStyle();
+          if ((window as any)[ACTIVE_KEY] === this) (window as any)[ACTIVE_KEY] = null;
           console.log('[spotify-card] destroyed');
         }
       }

@@ -1,0 +1,158 @@
+name: Build Android APK (Spotify card baked in)
+
+# 把本仓库的插件打进 Blinko App 的 dist/public，编译出一个带卡片的 APK。
+# 触发：Actions → 本工作流 → Run workflow（可指定 Blinko 的分支/标签）
+on:
+  workflow_dispatch:
+    inputs:
+      blinko_ref:
+        description: 'Blinko 源码 ref（分支或 tag，例如 main / 1.8.8）'
+        required: true
+        default: 'main'
+      plugin_ref:
+        description: '插件仓库 ref（默认 main）'
+        required: true
+        default: 'main'
+      build_universal:
+        description: '构建 universal 包（含 4 种 ABI，耗时更长）'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+
+    steps:
+      - name: Checkout plugin repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.plugin_ref }}
+          path: plugin
+
+      - name: Checkout Blinko
+        uses: actions/checkout@v4
+        with:
+          repository: blinko-space/blinko
+          ref: ${{ inputs.blinko_ref }}
+          path: blinko
+          fetch-depth: 1
+
+      - name: Read Blinko version
+        id: ver
+        run: echo "version=$(jq -r .version blinko/app/src-tauri/tauri.conf.json)" >> "$GITHUB_OUTPUT"
+
+      # app/public 是 Vite 的静态目录，构建时会原样复制到 dist/public
+      - name: Inject plugin into frontend public dir
+        run: |
+          DEST=blinko/app/public/plugins/blinko-plugin-spotify-embed
+          mkdir -p "$DEST"
+          cp plugin/release/index.js "$DEST/index.js"
+          cp plugin/plugin.json "$DEST/plugin.json"
+          echo "injected:"; ls -l "$DEST"
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: sdkmanager "ndk;27.0.11902837"
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.2.8
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: blinko/app/src-tauri
+          cache-on-failure: true
+
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('blinko/**/*.gradle*', 'blinko/**/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Install dependencies
+        working-directory: blinko
+        run: |
+          bun install --frozen-lockfile
+          bun run prisma:generate
+
+      - name: Configure signing (self-signed, for personal builds)
+        run: |
+          mkdir -p "$HOME/.android" blinko/app/src-tauri/gen/android
+          keytool -genkeypair -v \
+            -keystore "$HOME/.android/blinko-selfbuild.jks" \
+            -storepass blinko123 -keypass blinko123 \
+            -alias upload -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Blinko Self Build, O=Blinko, C=CN"
+          cat > blinko/app/src-tauri/gen/android/keystore.properties <<EOF
+          password=blinko123
+          keyAlias=upload
+          storeFile=$HOME/.android/blinko-selfbuild.jks
+          EOF
+          cat blinko/app/src-tauri/gen/android/keystore.properties
+
+      - name: Build APK
+        working-directory: blinko/app
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.11902837
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.11902837
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: |
+          if [ "${{ inputs.build_universal }}" = "true" ]; then
+            bun run tauri:android:build
+          else
+            bun run tauri:android:build -- --target aarch64
+          fi
+
+      - name: Collect APK
+        id: apk
+        run: |
+          APK=$(find blinko/app/src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | sort | head -1)
+          if [ -z "$APK" ]; then echo "no apk produced"; exit 1; fi
+          echo "found $APK"
+          mkdir -p out
+          NAME="Blinko-${{ steps.ver.outputs.version }}-spotify.apk"
+          cp "$APK" "out/$NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          ls -lh out
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: blinko-apk-${{ steps.ver.outputs.version }}-spotify
+          path: out/*.apk
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          {
+            echo "### APK 构建完成"
+            echo ""
+            echo "- Blinko: \`${{ inputs.blinko_ref }}\` (v${{ steps.ver.outputs.version }})"
+            echo "- 插件: \`${{ inputs.plugin_ref }}\`"
+            echo "- 产物: \`${{ steps.apk.outputs.name }}\`（在工作流页面的 Artifacts 里下载）"
+            echo ""
+            echo "> 首次安装需要允许「未知来源」。这是自签名包，签名与官方 APK 不同，覆盖安装前请先备份。"
+          } >> "$GITHUB_STEP_SUMMARY"

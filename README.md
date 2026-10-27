@@ -55,6 +55,7 @@ blinko-plugin-spotify-embed/
 │   └── locales/{zh,en}.json
 ├── release/index.js         # 构建产物（vite build，SystemJS）
 ├── tools/dev-server.mjs     # 零依赖推送服务（不想装 bun 时用）
+├── .github/workflows/       # build-apk.yml：CI 编译带插件的 APK
 ├── preview/                 # 离线预览页（模拟 Blinko 的笔记 DOM）
 ├── package.json
 ├── vite.config.ts
@@ -110,6 +111,52 @@ node tools/dev-server.mjs   # 默认 8080，PORT=9000 可改
 窄屏适配：宽度 < 480px 时自动收窄头部内边距与字号；去掉触屏点击的灰色高亮；懒加载在手机上更要紧（只挂载视口附近 ±480px 的 iframe）。老版 Android WebView（<105）不支持 CSS `:has()` 时，隐藏原生预览会退回 inline style，一样能用。
 
 ---
+
+## 自编译 App（把插件打进安装包）
+
+官方 App 加载插件的路径是 `/plugins/{name}/index.js`，相对**App 自己的 origin**，而 App 的前端又是打包进安装包的。所以只要构建时把插件文件放进 `app/public/plugins/{name}/`，Vite 会原样复制到 `dist/public/`，App 里就能命中：
+
+```
+blinko/app/public/plugins/blinko-plugin-spotify-embed/index.js
+  →  vite build  →
+blinko/dist/public/plugins/blinko-plugin-spotify-embed/index.js
+  →  System.import('/plugins/blinko-plugin-spotify-embed/index.js')  ✅
+```
+
+> App 仍然是从**服务端**读「已安装插件列表」（`api.plugin.getInstalledPlugins`），所以服务端也要装一次（网页端点个安装即可）。代码走本地包，列表走服务端，两边 name 必须一致。
+
+### 方式 A：GitHub Actions 一键出包（推荐）
+
+本仓库自带工作流 [`.github/workflows/build-apk.yml`](.github/workflows/build-apk.yml)：
+
+1. 打开仓库 **Actions → Build Android APK (Spotify card baked in) → Run workflow**
+2. 可填 Blinko 的分支/标签（默认 `main`）、插件 ref、是否出 universal 包
+3. 跑完在该次运行的 **Artifacts** 里下载 `blinko-apk-<版本>-spotify.apk`
+
+工作流做的事：checkout Blinko → 拷插件进 `app/public/plugins/` → JDK 17 + Android SDK/NDK 27 + Rust 四个 Android target → 自签名 keystore → `tauri android build` → 上传产物。首次跑约 30–45 分钟（有 Rust/Gradle 缓存后快很多）。
+
+### 方式 B：本地编译
+
+```bash
+git clone https://github.com/blinko-space/blinko.git
+cd blinko
+mkdir -p app/public/plugins/blinko-plugin-spotify-embed
+cp <本仓库>/release/index.js app/public/plugins/blinko-plugin-spotify-embed/index.js
+bun install && bun run prisma:generate
+cd app && bun run tauri:android:build
+# 产物：app/src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+```
+
+需要：JDK 17、Android SDK + NDK `27.0.11902837`、Rust（`aarch64-linux-android` 等 4 个 target）、bun。
+
+### 注意事项
+
+- 这是**自签名**包：与官方 APK 签名不同，装之前先卸载官方版（数据在服务端，不会丢）。
+- 插件同时被服务端装了一份、包内打了一份，可能被加载两次；插件已加单例保护（`window.__BLINKO_SPOTIFY_CARD_ACTIVE__`），第二次会直接跳过。
+- 升级 Blinko 版本后，重新跑一次工作流（输入新的 tag）即可，插件不用改。
+
+---
+
 
 ## 使用
 
